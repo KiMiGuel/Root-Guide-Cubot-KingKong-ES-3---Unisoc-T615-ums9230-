@@ -42,6 +42,9 @@ Image.gz-dtb
 tmp/
 .cache/
 
+# Claude Code
+.claude/
+
 # Local extracted comparison artifacts
 comparison/boot_3way/
 comparison/init_boot_stock_vs_live/

@@ -85,10 +85,7 @@ adb --version && fastboot --version
 
 Un archivo `.pac` es el contenedor de firmware todo-en-uno de Unisoc — un solo archivo grande que contiene todas las imágenes de partición. Tú solo necesitas una imagen de ahí.
 
-1. Descarga el firmware oficial **de la versión que tienes instalada en el teléfono** (**Ajustes → Acerca del teléfono → Número de compilación**; por ejemplo `CUBOT_KINGKONG_ES_3_F071_V16_20260309` o `..._V17_20260924`) desde la página de soporte de Cubot: [cubot.net/soporte](https://cubot.net/Support/id/135/cid/27.html) → KingKong ES 3. El zip pesa unos 3 GB; al descomprimirlo sale el archivo `.pac` (unos 4 GB).
-
-   > [!IMPORTANT]
-   > Si usas un `init_boot.img` de una versión distinta a la del teléfono, se queda en bucle de arranque.
+1. Descarga el firmware oficial **de la versión que tienes instalada en el teléfono** (**Ajustes → Acerca del teléfono → Número de compilación**; por ejemplo `CUBOT_KINGKONG_ES_3_F071_V16_20260309` o `..._V17_20260924`) desde la página de soporte de Cubot: [cubot.net/soporte](https://cubot.net/Support/id/135/cid/27.html) → KingKong ES 3. El zip pesa unos 3 GB; al descomprimirlo sale el archivo `.pac` (unos 4 GB). ⚠️ **Importante:** si usas un `init_boot.img` de una versión distinta a la del teléfono, se queda en bucle de arranque.
 2. Extrae el PAC en Linux:
 
 ```

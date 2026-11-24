@@ -8,10 +8,19 @@ Target device/build:
 Cubot KingKong ES3
 Unisoc T615 / ums9230-family
 CUBOT_KINGKONG_ES_3_F071_V16_20260309
-Android 13
+Android 15 userspace on an Android 13 GKI 5.15 kernel
 Kernel: 5.15.178-android13-8-00012-g4ea0fcb5d130-ab13530115
 Storage: UFS
 ```
+
+The root step was also verified on the later V17 build:
+
+```text
+CUBOT_KINGKONG_ES_3_F071_V17_20260924
+Kernel: 5.15.197-android13-8-00005-g2d8ad9139b89-ab15063902
+```
+
+The unlock steps (BROM/FDL2) were verified on V16 only. See [After an OTA Update](#after-an-ota-update-v16--v17) for what changes between builds.
 
 ## Critical Update
 
@@ -189,6 +198,8 @@ w init_boot_a magisk_patched-XXXXX.img
 
 Use the actual patched file name produced by Magisk.
 
+The active slot is shown in the `Device is using slot X` line when FDL2 connects, and by `fastboot getvar current-slot` in fastbootd. Write the patched image to that slot's `init_boot`. Flashing the patched image in fastbootd (`fastboot flash init_boot_a ...`) works as well as writing it from FDL2; the plain bootloader fastboot rejects it, so use fastbootd.
+
 Do not write the Magisk-patched file to `boot_a` for this build. The verified rooted state has stock `boot_a` and patched `init_boot_a`.
 
 ## vbmeta State
@@ -269,6 +280,17 @@ patched init_boot_a
   v
 Magisk root
 ```
+
+## After an OTA Update (V16 -> V17)
+
+Observed on the V16 -> V17 over-the-air update:
+
+- The OTA replaced `init_boot`, so Magisk root was gone. The bootloader stayed OEM-unlocked (`miscdata` untouched). Only the root step needs to be repeated. A complete PAC reflash is different: the PAC flash definition includes `misc`/`miscdata` erase blocks and can remove the unlock.
+- **Never reuse a Magisk-patched `init_boot` made from an older build.** Patched images are built on the stock image they came from; flashing one made from V16 onto V17 bootloops. Extract `init_boot.img` from the PAC of the build installed on the phone (or use that build's stock `init_boot` on the phone) and patch that.
+- An OTA writes the inactive slot. After the update the two slots can differ on boot-chain partitions: on this device `uboot`, `sml`, `trustos` and `teecfg` on one slot still held the previous build's images while the other slot matched V17, and the chained vbmeta partitions (`vbmeta_system`, `vbmeta_vendor`, `vbmeta_system_ext`, `vbmeta_product`, `vbmeta_odm`) were still V16. A slot mixing builds in this way crash-loops before the backlight comes on. If you flash one slot, keep its whole boot chain on one build.
+- The V17 PAC's `super.img` contains only the `_a` logical partitions; every `_b` logical partition has size 0. Flashing it whole leaves slot B without a system. Write logical partitions individually in fastbootd instead (`fastboot flash system_a system.img`, and so on).
+- On V17, `com.android.devicelockcontroller` must stay installed for user 0. Without it the system server crash-loops on `DeviceLockService` ("DEVICE_LOCK_CONTROLLER_SERVICE not found") and the phone stays on the boot animation. `adb shell cmd package install-existing --user 0 com.android.devicelockcontroller` restores it; repeat until it succeeds while the system is restarting.
+- The module ABI did not change between V16 and V17: the vendor modules in both `vendor_boot` images export the same `module_layout` CRC (`0x222dd63`) and every shared symbol CRC is identical.
 
 ## Files Not Stored Here
 

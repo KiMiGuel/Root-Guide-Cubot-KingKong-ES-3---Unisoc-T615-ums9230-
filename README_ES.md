@@ -2,17 +2,25 @@
 
 # 🔓 Cubot KingKong ES 3 — Guía de Desbloqueo y Root
 
-**Unisoc T615 (UMS9230_6h10) · UFS · slots A/B · build `CUBOT_KINGKONG_ES_3_F071_V16_20260309`**
+**Unisoc T615 (UMS9230_6h10) · UFS · slots A/B**
 
-Dos partes: desbloquear el bootloader (Pasos 1–5, la secuencia clásica BROM/FDL2) y rootear con Magisk (Paso 6) — con preparación de herramientas primero (Paso 0).
+Son dos partes: **desbloquear el bootloader** (Pasos 1–5, la secuencia clásica BROM/FDL2) y **rootear con Magisk** (Paso 6), con una preparación de herramientas antes (Paso 0).
 
-> ⚠️ **Lee esto primero**
+| 📱 Build | ✅ Probado |
+|---|---|
+| `CUBOT_KINGKONG_ES_3_F071_V16_20260309` | Pasos 1–5 (desbloqueo) y Paso 6 (root) |
+| `CUBOT_KINGKONG_ES_3_F071_V17_20260924` | Paso 6 (root) |
+
+¿Ya actualizaste a un build más nuevo o vas a hacerlo? Ve directo a [Después de una actualización OTA](#-después-de-una-actualización-ota-v16--v17-y-posteriores).
+
+> [!WARNING]
+> **Lee esto antes de empezar**
 > - 🟡 Dificultad: media/avanzada. Si no sabes lo que estás haciendo, detente aquí.
 > - 💥 **Esto borra todo el dispositivo** — respalda tus datos primero.
 > - 🔌 **Solo puerto y cable USB 2.0** — el USB 3.0 causa fallos de conexión en este dispositivo.
 > - 🐧 Usa **Linux** (Kali). Ni macOS, ni Windows.
 > - 📁 **Ejecuta cada comando desde dentro de la carpeta del paquete** — `spd_dump` toma los archivos desde el directorio actual; trabajar desde otro lugar falla en silencio.
-> - 🎯 Verificado únicamente en el build indicado arriba — vuelve a verificar antes de usarlo en cualquier otro build.
+> - 🎯 **Solo probado en los builds de arriba.** Para saber cuál tienes: **Ajustes → Acerca del teléfono → Número de compilación**. En cualquier otro, compruébalo antes.
 > - 🧯 ¿Se brickeó a la mitad? El modo BROM siempre responde — siempre puedes recuperarlo.
 > - ☢️ `prodnv` / `nvitem` / `l_fixnv` contienen datos de calibración de fábrica — nunca los leas, escribas ni borres, en ningún paso.
 
@@ -51,6 +59,9 @@ Verifica que compilaste lo correcto — ambas comprobaciones deben pasar:
 grep reopen_port common.c  # debe encontrar el fix de reconexión
 ```
 
+> [!TIP]
+> **Cómo escribir los comandos:** la guía pone `spd_dump …`, `gen_spl-unlock …` y `chsize …` solo para que las líneas queden cortas. Al escribirlos tú, añade `./` al principio (`./spd_dump`, `./gen_spl-unlock`, `./chsize`) y ejecuta `spd_dump` con `sudo` (`sudo ./spd_dump`), porque necesita permisos de root para acceder al USB.
+
 También necesitarás `adb` y `fastboot` de Android para el Paso 6 — instálalos ahora para no quedarte atascado a mitad de la guía:
 
 ```
@@ -74,7 +85,10 @@ adb --version && fastboot --version
 
 Un archivo `.pac` es el contenedor de firmware todo-en-uno de Unisoc — un solo archivo grande que contiene todas las imágenes de partición. Tú solo necesitas una imagen de ahí.
 
-1. Descarga el zip del firmware oficial para el build indicado arriba desde la página de soporte de Cubot: [cubot.net/soporte](https://cubot.net/Support/id/135/cid/27.html) → KingKong ES 3 → `CUBOT_KINGKONG_ES_3_F071_V16_20260309`. Descomprímelo — adentro está el archivo `.pac` (~3 GB).
+1. Descarga el firmware oficial **de la versión que tienes instalada en el teléfono** (**Ajustes → Acerca del teléfono → Número de compilación**; por ejemplo `CUBOT_KINGKONG_ES_3_F071_V16_20260309` o `..._V17_20260924`) desde la página de soporte de Cubot: [cubot.net/soporte](https://cubot.net/Support/id/135/cid/27.html) → KingKong ES 3. El zip pesa unos 3 GB; al descomprimirlo sale el archivo `.pac` (unos 4 GB).
+
+   > [!IMPORTANT]
+   > Si usas un `init_boot.img` de una versión distinta a la del teléfono, se queda en bucle de arranque.
 2. Extrae el PAC en Linux:
 
 ```
@@ -103,7 +117,9 @@ Extrae `splloader` + `uboot` (cópialos del teléfono a archivos en la carpeta a
 spd_dump --wait 300 exec_addr 0x65015f08 fdl fdl1-dl.bin 0x65000800 fdl fdl2-dl.bin 0x9efffe00 exec r splloader r uboot e splloader e splloader_bak reset
 ```
 
-Qué hace esto: abre BROM con el exploit → carga FDL1+FDL2 → lee `splloader` y `uboot` a `splloader.bin` / `uboot.bin` → borra las ranuras del splloader (se reescriben en el Paso 5) → reinicia.
+> [!NOTE]
+> **Qué hace:** abre BROM con el exploit → carga FDL1+FDL2 → lee `splloader` y `uboot` a `splloader.bin` / `uboot.bin` → borra las ranuras del splloader (se reescriben en el Paso 5) → reinicia.
+
 
 Espera el reinicio. Si ves `find port failed` → cierra y vuelve a ejecutar — **no** continúes después de ese error.
 
@@ -120,7 +136,9 @@ mv uboot.bin uboot_bak.bin
 
 ## ⚡ Paso 2 — Escribe el FDL2 de trabajo
 
-Qué hace este paso: reemplaza temporalmente la partición `uboot` con `fdl2-cboot.bin`, una copia cooperativa de FDL2 — el uboot stock se negaría a participar en lo que sigue. Tu uboot original está respaldado a salvo y regresa en el Paso 5.
+> [!NOTE]
+> **Qué hace:** reemplaza temporalmente la partición `uboot` con `fdl2-cboot.bin`, una copia cooperativa de FDL2 — el uboot stock se negaría a participar en lo que sigue. Tu uboot original está respaldado a salvo y regresa en el Paso 5.
+
 
 Vuelve a entrar a BROM (Paso 1) y luego:
 
@@ -134,7 +152,9 @@ Espera ~10 segundos después del reinicio.
 
 ## 🔓 Paso 3 — Ejecuta el desbloqueo
 
-Qué hace este paso: envía el `spl-unlock.bin` neutralizado a través de BROM y lo ejecuta. Es el código del splloader **con la verificación de bloqueo eliminada** — y el simple hecho de que corra voltea la bandera de desbloqueo en `miscdata`. Ese volteo de bandera ES el desbloqueo; no hay ninguna danza de "restauración" después.
+> [!NOTE]
+> **Qué hace:** envía el `spl-unlock.bin` neutralizado a través de BROM y lo ejecuta. Es el código del splloader **con la verificación de bloqueo eliminada** — y el simple hecho de que corra voltea la bandera de desbloqueo en `miscdata`. Ese volteo de bandera ES el desbloqueo; no hay ninguna danza de "restauración" después.
+
 
 Vuelve a entrar a BROM y luego:
 
@@ -142,10 +162,13 @@ Vuelve a entrar a BROM y luego:
 spd_dump exec_addr 0x65015f08 fdl spl-unlock.bin 0x65000800
 ```
 
-Lo que vas a ver, y por qué todo va bien:
-- 🔄 `CHECK_BAUD FAIL` — es normal. El build parcheado se reconecta solo.
-- ✅ `CHECK_BAUD FDL1` → `BSL_REP_VER: "SPRD3"` → `CMD_CONNECT FDL1` — **esta ES la señal de éxito.** El desbloqueo ya se aplicó.
-- ⏱️ `timeout reached` después de eso — **es exactamente lo que quieres ver.** No es un error. **No** lo vuelvas a ejecutar; pasa al Paso 4. (Solo si nunca ves `CMD_CONNECT FDL1`, ejecútalo una vez más.)
+**Lo que vas a ver, y por qué todo va bien:**
+
+| | Verás | Significa |
+|---|---|---|
+| 🔄 | `CHECK_BAUD FAIL` | Es normal. El build parcheado se reconecta solo. |
+| ✅ | `CHECK_BAUD FDL1` → `BSL_REP_VER: "SPRD3"` → `CMD_CONNECT FDL1` | **Esta ES la señal de éxito.** El desbloqueo ya se aplicó. |
+| ⏱️ | `timeout reached` después de eso | **Es exactamente lo que quieres ver.** No es un error. **No** lo vuelvas a ejecutar; pasa al Paso 4. (Solo si nunca ves `CMD_CONNECT FDL1`, ejecútalo una vez más.) |
 
 ---
 
@@ -163,7 +186,9 @@ Revisa `m.bin` (`xxd m.bin`): 64 bytes en cero = sigue bloqueado (repite el Paso
 
 ## 🧹 Paso 5 — Restaura y borra
 
-Qué hace este paso: vuelve a armar el teléfono — reescribe tus respaldos originales de `splloader` y `uboot` (el splloader neutralizado y `fdl2-cboot` eran solo invitados temporales), y escribe `misc-wipe.bin` para forzar el restablecimiento de fábrica que un desbloqueo requiere.
+> [!NOTE]
+> **Qué hace:** vuelve a armar el teléfono — reescribe tus respaldos originales de `splloader` y `uboot` (el splloader neutralizado y `fdl2-cboot` eran solo invitados temporales), y escribe `misc-wipe.bin` para forzar el restablecimiento de fábrica que un desbloqueo requiere. El `r boot` del comando también guarda una copia de seguridad de tu partición `boot` como `boot.bin`.
+
 
 ```
 spd_dump exec_addr 0x65015f08 fdl fdl1-dl.bin 0x65000800 fdl fdl2-dl.bin 0x9efffe00 exec r boot w splloader u-boot-spl-16k-sign.bin w uboot uboot_bak.bin w misc misc-wipe.bin reset
@@ -179,7 +204,7 @@ El bootloader ya está desbloqueado — ahora el root es simplemente que Magisk 
 
 Si todavía no lo tienes, instala la app de Magisk en el teléfono: descarga el APK más reciente desde [los releases de Magisk en GitHub](https://github.com/topjohnwu/Magisk/releases) e instálalo (permite "instalar de orígenes desconocidos" si te lo pide).
 
-Arranca Android → Ajustes → Acerca del teléfono → toca **Número de compilación** ×7 → Opciones de desarrollador → **Depuración USB**. Después:
+Arranca Android → Ajustes → Acerca del teléfono → toca **Número de compilación** ×7 → Opciones de desarrollador → **Depuración USB**. Al conectar el teléfono a la PC te preguntará **¿Permitir depuración USB?** — toca **Permitir** (y marca *Permitir siempre*). Después:
 
 ```
 adb push init_boot.img /sdcard/Download/
@@ -194,11 +219,35 @@ adb reboot fastboot                 # va DIRECTO a fastbootd — salta el bootlo
                                     # Confirmación en pantalla: se ve como Android Recovery —
                                     # "FASTBOOTD" en amarillo arriba, letras rojas debajo.
 fastboot devices                    # debe mostrar "<serie> fastbootd" — confirma antes de flashear
-fastboot flash init_boot_a init_boot_a.img
+fastboot getvar current-slot        # muestra "current-slot: a" o "b" — el root tiene que ir en el slot con el que arrancas
+fastboot flash init_boot_a init_boot_a.img    # si dijo b: flashea init_boot_b y renombra el archivo a init_boot_b.img
 fastboot reboot
 ```
 
 Abre Magisk → root activo. 🎉 **Listo — desbloqueado y rooteado.**
+
+---
+
+## 🔄 Después de una actualización OTA (V16 → V17 y posteriores)
+
+Una OTA reemplaza `init_boot`, así que **pierdes el root, pero el bootloader sigue desbloqueado (OEM unlock)**. Normalmente solo hay que repetir el Paso 6 — **salvo que reflashees el firmware completo desde el PAC**, porque eso puede borrar la bandera de desbloqueo (vive en `miscdata`) y tendrías que repetir también los Pasos 1–5.
+
+**Para recuperar el root:**
+
+1. Consigue el PAC de la versión **nueva** y saca de ahí su `init_boot.img` original (Paso 0 → *Cómo sacar `init_boot.img` del PAC stock*).
+2. Repite el Paso 6 con el `init_boot.img` nuevo (comprueba antes el `current-slot`).
+
+> [!CAUTION]
+> **Lo que no debes hacer**
+> - 🚫 **Reutilizar una imagen parcheada de una versión anterior** — deja el teléfono en bootloop.
+> - 🚫 **Flashear el `super.img` de un PAC.** Solo trae las particiones de sistema del slot A; las del slot B vienen vacías, así que el slot B se quedaría sin sistema.
+> - 🚫 **Desinstalar `com.android.devicelockcontroller`** (aparece en muchas listas de debloat). En V17, sin esa app el sistema se cae una y otra vez y el teléfono se queda para siempre en la animación de arranque.
+
+🩺 **¿Ya lo desinstalaste?** Ejecuta esto desde una PC con adb autorizado y repítelo hasta que responda `installed for user: 0` (falla mientras el sistema sigue reiniciándose):
+
+```
+adb shell cmd package install-existing --user 0 com.android.devicelockcontroller
+```
 
 ---
 
@@ -211,6 +260,8 @@ Abre Magisk → root activo. 🎉 **Listo — desbloqueado y rooteado.**
 | `find port failed` | Cierra y vuelve a ejecutar el mismo comando |
 | Se desconecta / no detecta el teléfono | Asegúrate de estar en USB 2.0 |
 | Dos `CHECK_BAUD FAIL` → `device removed, exiting...` | A tu build de `spd_dump` le falta el fix de reconexión — recompila desde el código fuente del paquete (`common.c` debe contener `reopen_port`) |
+| `adb devices` muestra `unauthorized` | El teléfono no reconoce la llave de esta PC. Toca **Permitir** en el teléfono, o copia `adbkey` y `adbkey.pub` (carpeta `~/.android/`) desde una PC que ya habías autorizado, y ejecuta `adb kill-server` |
+| Atascado en la animación de arranque después de quitar apps | Mira [Después de una actualización OTA](#-después-de-una-actualización-ota-v16--v17-y-posteriores) — vuelve a instalar `com.android.devicelockcontroller` |
 | Boot loop / soft brick en cualquier punto | BROM (Paso 1) siempre responde — reflashea el firmware stock y repite la guía |
 | ☠️ En `spd_dump` | **Nunca** ejecutes `repartition`, `erase_all` ni `ufs repart/rawerase/setattr` — truncan la GPT |
 

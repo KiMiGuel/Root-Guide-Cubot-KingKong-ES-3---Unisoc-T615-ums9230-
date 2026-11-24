@@ -6,13 +6,15 @@
 
 Two parts: unlock the bootloader (Steps 1–5, the classic BROM/FDL2 sequence) and root with Magisk (Step 6) — with tool prep first (Step 0).
 
+Steps 1–5 were verified on **V16**. Step 6 (root) was verified on **V16** and **V17** (`CUBOT_KINGKONG_ES_3_F071_V17_20260924`). Already updated to a newer build, or planning to? See [After an OTA update](#-after-an-ota-update-v16--v17-and-later).
+
 > ⚠️ **Read this first**
 > - 🟡 Difficulty: medium/hard. If you don't know what you're doing, stop here.
 > - 💥 **This wipes the device** — back up first.
 > - 🔌 **USB 2.0 port + cable only** — USB 3.0 causes connection failures on this device.
 > - 🐧 Use **Linux** (Kali). Not macOS, not Windows.
 > - 📁 **Run every command from inside the package folder** — `spd_dump` picks up payload files from the current directory; working elsewhere breaks silently.
-> - 🎯 Verified only on the build above — re-verify before using on any other build.
+> - 🎯 Verified only on the builds above — re-verify before using on any other build. Check yours: **Settings → About phone → Build number**.
 > - 🧯 Bricked mid-way? BROM mode always answers — you can always recover.
 > - ☢️ `prodnv` / `nvitem` / `l_fixnv` hold factory calibration data — never read/write/erase them, at any step.
 
@@ -51,6 +53,8 @@ Verify you built the right thing — both checks must pass:
 grep reopen_port common.c  # must find the reconnect fix
 ```
 
+**How to type the commands:** the guide writes `spd_dump …`, `gen_spl-unlock …` and `chsize …` to keep lines short. When you type them, put `./` in front (`./spd_dump`, `./gen_spl-unlock`, `./chsize`), and run `spd_dump` as `sudo ./spd_dump` — it needs root to open the USB device.
+
 You'll also need Android's `adb` and `fastboot` for Step 6 — install them now so you're not stuck mid-guide:
 
 ```
@@ -74,7 +78,7 @@ adb --version && fastboot --version
 
 A `.pac` file is Unisoc's all-in-one firmware container — one big file holding every partition image. You need exactly one image out of it.
 
-1. Download the official firmware zip for the build at the top of this guide from Cubot's own support page: [cubot.net/support](https://cubot.net/Support/id/135/cid/27.html) → KingKong ES 3 → `CUBOT_KINGKONG_ES_3_F071_V16_20260309`. Unzip it — inside is the `.pac` file (~3 GB).
+1. Download the official firmware zip for **the build installed on your phone** (**Settings → About phone → Build number**, e.g. `CUBOT_KINGKONG_ES_3_F071_V16_20260309` or `..._V17_20260924`) from Cubot's own support page: [cubot.net/support](https://cubot.net/Support/id/135/cid/27.html) → KingKong ES 3. The zip is ~3 GB. Unzip it — inside is the `.pac` file (~4 GB). An `init_boot.img` from a different build than the one on your phone will bootloop it.
 2. Extract the PAC on Linux:
 
 ```
@@ -163,7 +167,7 @@ Check `m.bin` (`xxd m.bin`): 64 zero bytes = still locked (repeat Step 3) · 32-
 
 ## 🧹 Step 5 — Restore & wipe
 
-What this step does: puts the phone back together — writes your original `splloader` and `uboot` backups back (the neutered splloader and `fdl2-cboot` were temporary guests only), and writes `misc-wipe.bin` to force the factory reset that an unlock requires.
+What this step does: puts the phone back together — writes your original `splloader` and `uboot` backups back (the neutered splloader and `fdl2-cboot` were temporary guests only), and writes `misc-wipe.bin` to force the factory reset that an unlock requires. (The `r boot` in the command also saves a spare copy of your `boot` partition as `boot.bin`.)
 
 ```
 spd_dump exec_addr 0x65015f08 fdl fdl1-dl.bin 0x65000800 fdl fdl2-dl.bin 0x9efffe00 exec r boot w splloader u-boot-spl-16k-sign.bin w uboot uboot_bak.bin w misc misc-wipe.bin reset
@@ -179,7 +183,7 @@ The bootloader is unlocked — now root is just Magisk patching `init_boot.img` 
 
 If you haven't already, install the Magisk app on the phone: download the latest APK from [Magisk's GitHub releases](https://github.com/topjohnwu/Magisk/releases) and install it (allow "install from unknown sources" if prompted).
 
-Boot Android → Settings → About Phone → tap Build Number ×7 → Developer Options → **USB debugging**. Then:
+Boot Android → Settings → About Phone → tap Build Number ×7 → Developer Options → **USB debugging**. When you connect the phone to your PC it asks **Allow USB debugging?** — tap **Allow** (tick *Always allow*). Then:
 
 ```
 adb push init_boot.img /sdcard/Download/
@@ -194,11 +198,29 @@ adb reboot fastboot                 # goes STRAIGHT to fastbootd — skips the b
                                     # On-device confirmation: screen looks like Android Recovery —
                                     # "FASTBOOTD" in yellow at the top, red lettering below.
 fastboot devices                    # must show "<serial> fastbootd" — confirm before flashing
-fastboot flash init_boot_a init_boot_a.img
+fastboot getvar current-slot        # prints "current-slot: a" or "b" — root must go on the slot you boot
+fastboot flash init_boot_a init_boot_a.img    # if it said b: flash init_boot_b and rename the file to init_boot_b.img
 fastboot reboot
 ```
 
 Open Magisk → root active. 🎉 **Done — unlocked and rooted.**
+
+---
+
+## 🔄 After an OTA update (V16 → V17 and later)
+
+An OTA replaces `init_boot`, so **root disappears — but the bootloader stays OEM-unlocked.** You only need to redo Step 6 — **unless you do a complete firmware reflash from the PAC**, which can erase the unlock flag (it lives in `miscdata`); in that case you must redo Steps 1–5 too. To get root back:
+
+1. Get the PAC for the **new** build and extract its stock `init_boot.img` (Step 0 → *Getting `init_boot.img` out of the stock PAC*). **Never reuse a patched image made from an older build** — it bootloops.
+2. Repeat Step 6 with the new `init_boot.img` (check `current-slot` first).
+
+Things **not** to do:
+- 🚫 **Don't flash `super.img` from a PAC.** It only holds slot A's system partitions; slot B's are empty, so flashing it leaves slot B with no system.
+- 🚫 **Don't uninstall `com.android.devicelockcontroller`** (it shows up on debloat lists). On V17, without it the system crashes in a loop and the phone sits on the boot animation forever. If that already happened, run this from a PC with adb authorized, repeating until it prints `installed for user: 0` (the command fails while the system keeps restarting):
+
+```
+adb shell cmd package install-existing --user 0 com.android.devicelockcontroller
+```
 
 ---
 
@@ -211,6 +233,8 @@ Open Magisk → root active. 🎉 **Done — unlocked and rooted.**
 | `find port failed` | Close and re-run the same command |
 | Connection drops / won't detect | Make sure you're on USB 2.0 |
 | Two `CHECK_BAUD FAIL` → `device removed, exiting...` | Your `spd_dump` build is missing the reconnect fix — rebuild from the package source (`common.c` must contain `reopen_port`) |
+| `adb devices` shows `unauthorized` | The phone doesn't know this PC's key. Tap **Allow** on the phone, or copy `~/.android/adbkey` and `adbkey.pub` from a PC you authorized before into the same folder on this one, then run `adb kill-server` |
+| Stuck on the boot animation after removing apps | See [After an OTA update](#-after-an-ota-update-v16--v17-and-later) — restore `com.android.devicelockcontroller` |
 | Boot loop / soft brick at any point | BROM (Step 1) always answers — reflash stock firmware, redo the guide |
 | ☠️ In `spd_dump` | **Never** run `repartition`, `erase_all`, or `ufs repart/rawerase/setattr` — they truncate the GPT |
 

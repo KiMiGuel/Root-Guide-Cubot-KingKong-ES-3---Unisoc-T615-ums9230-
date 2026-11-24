@@ -289,6 +289,7 @@
         <span class="stamp">CVE-2022-38694</span>
         <span class="stamp mono">exec_addr 0x65015f08</span>
         <span class="stamp">BUILD F071_V16_20260309</span>
+        <span class="stamp">ROOT ALSO TESTED ON V17_20260924</span>
       </div>
     </div>
 
@@ -296,7 +297,7 @@
 
     <div class="hazard">
       <div class="hazard-bar" aria-hidden="true"></div>
-      <p><strong>Wipes the device.</strong> Back up first. Verified only on the build stamped above — re-verify before using on any other build.</p>
+      <p><strong>Wipes the device.</strong> Back up first. Steps 1–5 verified on V16; Step 6 on V16 and V17. Re-verify before using on any other build — check yours in Settings → About phone → Build number.</p>
     </div>
 
     <div class="stats">
@@ -396,6 +397,8 @@ grep reopen_port common.c  # must find the reconnect fix</div>
         <div class="code">sudo apt install android-tools-adb android-tools-fastboot
 adb --version &amp;&amp; fastboot --version</div>
 
+        <p class="note"><strong>How to type the commands:</strong> this page writes <code>spd_dump …</code>, <code>gen_spl-unlock …</code> and <code>chsize …</code> to keep lines short. When you type them, put <code>./</code> in front (<code>./spd_dump</code>, <code>./gen_spl-unlock</code>, <code>./chsize</code>) and run spd_dump as <code>sudo ./spd_dump</code> — it needs root to open the USB device.</p>
+
         <p><strong>Where every file comes from</strong></p>
         <div class="tablewrap">
           <table>
@@ -413,7 +416,7 @@ adb --version &amp;&amp; fastboot --version</div>
 
         <p><strong>Getting init_boot.img out of the stock PAC</strong> — a .pac file is Unisoc's all-in-one firmware container; you need exactly one image out of it.</p>
         <ol>
-          <li>Download the official firmware zip for the build stamped at the top of this page from <a href="https://cubot.net/Support/id/135/cid/27.html">Cubot's support page</a> → KingKong ES 3 → <code>CUBOT_KINGKONG_ES_3_F071_V16_20260309</code>. Unzip it — inside is the .pac file (~3 GB).</li>
+          <li>Download the official firmware zip for <strong>the build installed on your phone</strong> (Settings → About phone → Build number, e.g. <code>CUBOT_KINGKONG_ES_3_F071_V16_20260309</code> or <code>..._V17_20260924</code>) from <a href="https://cubot.net/Support/id/135/cid/27.html">Cubot's support page</a> → KingKong ES 3. The zip is ~3 GB. Unzip it — inside is the .pac file (~4 GB). An init_boot.img from a different build than the one on your phone will bootloop it.</li>
           <li>Extract the PAC on Linux:
             <div class="code">git clone https://github.com/bismoy-bot/PAC-Extractor
 cd PAC-Extractor
@@ -489,7 +492,7 @@ mv uboot.bin uboot_bak.bin</div>
       <div class="stepnum">05</div>
       <div class="step-body">
         <h3>Restore &amp; wipe</h3>
-        <p class="note">Puts the phone back together — writes your original splloader/uboot backups back, and writes misc-wipe.bin to force the factory reset an unlock requires.</p>
+        <p class="note">Puts the phone back together — writes your original splloader/uboot backups back, and writes misc-wipe.bin to force the factory reset an unlock requires. (The <code>r boot</code> in the command also saves a spare copy of your boot partition as boot.bin.)</p>
         <div class="code">spd_dump exec_addr 0x65015f08 fdl fdl1-dl.bin 0x65000800 fdl fdl2-dl.bin 0x9efffe00 exec r boot w splloader u-boot-spl-16k-sign.bin w uboot uboot_bak.bin w misc misc-wipe.bin reset</div>
         <p>Let the phone factory-reset and boot. <strong>Orange/unlocked warning screen = success.</strong></p>
       </div>
@@ -500,18 +503,34 @@ mv uboot.bin uboot_bak.bin</div>
       <div class="step-body">
         <h3>Root with Magisk</h3>
         <p>The bootloader is unlocked — root is just Magisk patching <code>init_boot.img</code> and flashing the patched copy, done in <strong>fastbootd</strong> (userspace fastboot), not the plain bootloader.</p>
-        <p>Install the <a href="https://github.com/topjohnwu/Magisk/releases">Magisk app</a> on the phone if you haven't already. Boot Android → Settings → About Phone → tap Build Number ×7 → Developer Options → <strong>USB debugging</strong>. Then:</p>
+        <p>Install the <a href="https://github.com/topjohnwu/Magisk/releases">Magisk app</a> on the phone if you haven't already. Boot Android → Settings → About Phone → tap Build Number ×7 → Developer Options → <strong>USB debugging</strong>. When you connect the phone to your PC it asks <strong>Allow USB debugging?</strong> — tap <strong>Allow</strong> (tick <em>Always allow</em>). Then:</p>
         <div class="code">adb push init_boot.img /sdcard/Download/</div>
         <p>In the Magisk app: <strong>Install → Select and Patch a File → init_boot.img</strong>, pull the patched image back, and flash it in fastbootd:</p>
         <div class="code">adb pull /sdcard/Download/magisk_patched-*.img .
 mv magisk_patched-*.img init_boot_a.img
 adb reboot fastboot                 # goes STRAIGHT to fastbootd — skips the bootloader
 fastboot devices                    # must show "&lt;serial&gt; fastbootd" — confirm before flashing
-fastboot flash init_boot_a init_boot_a.img
+fastboot getvar current-slot        # prints "current-slot: a" or "b" — root must go on the slot you boot
+fastboot flash init_boot_a init_boot_a.img    # if it said b: flash init_boot_b and rename the file to init_boot_b.img
 fastboot reboot</div>
         <p>Open Magisk → root active. <strong>Done — unlocked and rooted.</strong></p>
       </div>
     </div>
+  </section>
+
+  <section>
+    <h2>After an OTA update (V16 → V17 and later)</h2>
+    <p>An OTA replaces <code>init_boot</code>, so <strong>root disappears — but the bootloader stays OEM-unlocked.</strong> You only need to redo Step 6 — <strong>unless you do a complete firmware reflash from the PAC</strong>, which can erase the unlock flag (it lives in <code>miscdata</code>); in that case you must redo Steps 1–5 too. To get root back:</p>
+    <ol>
+      <li>Get the PAC for the <strong>new</strong> build and extract its stock <code>init_boot.img</code> (Step 0). <strong>Never reuse a patched image made from an older build</strong> — it bootloops.</li>
+      <li>Repeat Step 6 with the new <code>init_boot.img</code> (check <code>current-slot</code> first).</li>
+    </ol>
+    <p><strong>Don't:</strong></p>
+    <ul>
+      <li><strong>Flash <code>super.img</code> from a PAC.</strong> It only holds slot A's system partitions; slot B's are empty, so flashing it leaves slot B with no system.</li>
+      <li><strong>Uninstall <code>com.android.devicelockcontroller</code></strong> (it shows up on debloat lists). On V17, without it the system crashes in a loop and the phone sits on the boot animation forever. If that already happened, run this from a PC with adb authorized, repeating until it prints <code>installed for user: 0</code> (it fails while the system keeps restarting):</li>
+    </ul>
+    <div class="code">adb shell cmd package install-existing --user 0 com.android.devicelockcontroller</div>
   </section>
 
   <section>
@@ -525,6 +544,8 @@ fastboot reboot</div>
           <tr><td class="term">find port failed</td><td>Close and re-run the same command</td></tr>
           <tr><td class="term">Connection drops / won't detect</td><td>Make sure you're on USB 2.0</td></tr>
           <tr><td class="term">Two CHECK_BAUD FAIL → device removed</td><td>Your build is missing the reconnect fix — rebuild (common.c must contain reopen_port)</td></tr>
+          <tr><td class="term">adb devices shows unauthorized</td><td>The phone doesn't know this PC's key. Tap <strong>Allow</strong> on the phone, or copy <code>~/.android/adbkey</code> and <code>adbkey.pub</code> from a PC you authorized before into the same folder on this one, then run <code>adb kill-server</code></td></tr>
+          <tr><td class="term">Stuck on the boot animation after removing apps</td><td>Restore <code>com.android.devicelockcontroller</code> — see "After an OTA update" above</td></tr>
           <tr><td class="term">Boot loop / soft brick</td><td>BROM (Step 1) always answers — reflash stock firmware, redo the guide</td></tr>
           <tr><td class="term">In spd_dump</td><td><span class="no-touch">NEVER run repartition, erase_all, or ufs repart/rawerase/setattr</span> — they truncate the GPT</td></tr>
         </tbody>
